@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Helmet } from "react-helmet";
 import {
   MapContainer,
   TileLayer,
@@ -28,7 +29,6 @@ const hotelIcon = new L.Icon({
   iconAnchor: [14, 28],
 });
 
-// Different icons based on travel mode
 const icons = {
   car: new L.Icon({
     iconUrl: "https://cdn-icons-png.flaticon.com/512/743/743988.png",
@@ -59,12 +59,11 @@ function FitBounds({ points }) {
     try {
       const bounds = L.latLngBounds(points);
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
-    } catch (e) {}
+    } catch {}
   }, [points, map]);
   return null;
 }
 
-// Moving person/vehicle along the route
 function MovingPerson({ route, mode }) {
   const map = useMap();
   const markerRef = useRef(null);
@@ -78,11 +77,16 @@ function MovingPerson({ route, mode }) {
     }
 
     const icon =
-      mode === "car" ? icons.car : mode === "bike" ? icons.bike : mode === "flight" ? icons.flight : icons.walk;
+      mode === "car"
+        ? icons.car
+        : mode === "bike"
+        ? icons.bike
+        : mode === "flight"
+        ? icons.flight
+        : icons.walk;
 
     markerRef.current = L.marker(route[0], { icon }).addTo(map);
 
-    // Speed varies by travel mode
     const speed =
       mode === "flight" ? 50 : mode === "car" ? 150 : mode === "bike" ? 300 : 500;
 
@@ -129,7 +133,7 @@ function PlaceInput({ label, value, onChange, onSelect }) {
           .filter((it) => it.lat != null && it.lon != null);
         setSuggestions(items);
         setOpen(items.length > 0);
-      } catch (err) {
+      } catch {
         setSuggestions([]);
         setOpen(false);
       }
@@ -172,7 +176,6 @@ function PlaceInput({ label, value, onChange, onSelect }) {
 
 export default function App() {
   const mapRef = useRef(null);
-
   const [originText, setOriginText] = useState("");
   const [destText, setDestText] = useState("");
   const [origin, setOrigin] = useState(null);
@@ -186,8 +189,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [routeType, setRouteType] = useState("car");
 
-  // ... (rest of code remains the same: geocodeText, fetchRoute, fetchHotels, fetchWeatherFor, fetchForecastFor, planTrip, etc.)
-   const geocodeText = async (text) => {
+  const geocodeText = async (text) => {
     if (!text || !text.trim()) return null;
     try {
       const res = await axios.get("https://api.geoapify.com/v1/geocode/search", {
@@ -199,7 +201,7 @@ export default function App() {
       const lon = f.geometry?.coordinates?.[0];
       if (lat == null || lon == null) return null;
       return { lat, lon, display: f.properties?.formatted || "", raw: f };
-    } catch (err) {
+    } catch {
       return null;
     }
   };
@@ -208,20 +210,18 @@ export default function App() {
     if (!places || places.length < 2) throw new Error("Need >=2 points to route");
     const coords = places.map((p) => `${p.lon},${p.lat}`).join(";");
 
-    // Calculate straight-line distance for all modes
     const straightLineDistance = places.reduce((acc, curr, i) => {
       if (i === 0) return 0;
       const prev = places[i - 1];
       const d = Math.sqrt(
         Math.pow(curr.lat - prev.lat, 2) + Math.pow(curr.lon - prev.lon, 2)
-      ) * 111; // Approx km conversion
+      ) * 111;
       return acc + d;
     }, 0);
 
     if (mode === "flight") {
-      // For flights, use straight-line path
       const routeCoords = places.map((p) => [p.lat, p.lon]);
-      const flightSpeed = 800; // km/h for commercial flights
+      const flightSpeed = 800;
       const duration = straightLineDistance / flightSpeed;
       return {
         coords: routeCoords,
@@ -237,30 +237,25 @@ export default function App() {
     try {
       const res = await axios.get(url);
       const routeData = res.data?.routes?.[0];
-      if (!routeData || !routeData.geometry || !Array.isArray(routeData.geometry.coordinates)) throw new Error("Route not available");
+      if (!routeData || !routeData.geometry || !Array.isArray(routeData.geometry.coordinates))
+        throw new Error("Route not available");
       const routeCoords = routeData.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-      
-      // Adjust duration based on mode
+
       let duration = typeof routeData.duration === "number" ? routeData.duration / 3600 : 0;
       const distance = typeof routeData.distance === "number" ? routeData.distance / 1000 : 0;
-      
-      // Apply speed adjustment for bike (OSRM cycling profile may overestimate speed)
+
       if (mode === "bike") {
-        const bikeSpeed = 30; // Average bike speed in km/h
-        duration = distance / bikeSpeed; // Recalculate duration using realistic bike speed
+        const bikeSpeed = 30;
+        duration = distance / bikeSpeed;
       }
 
       return {
         coords: routeCoords,
-        summary: {
-          distance: distance.toFixed(1),
-          duration: duration.toFixed(1),
-        },
+        summary: { distance: distance.toFixed(1), duration: duration.toFixed(1) },
       };
-    } catch (err) {
-      // Fallback to straight-line calculation if OSRM fails
+    } catch {
       const routeCoords = places.map((p) => [p.lat, p.lon]);
-      const speed = mode === "bike" ? 20 : 60; // Bike: 20 km/h, Car: 60 km/h
+      const speed = mode === "bike" ? 20 : 60;
       const duration = straightLineDistance / speed;
       return {
         coords: routeCoords,
@@ -298,7 +293,7 @@ export default function App() {
           };
         })
         .filter(Boolean);
-    } catch (err) {
+    } catch {
       return [];
     }
   };
@@ -310,7 +305,7 @@ export default function App() {
         params: { lat, lon, units: "metric", appid: OWM_KEY },
       });
       return res.data || null;
-    } catch (err) {
+    } catch {
       return null;
     }
   };
@@ -328,11 +323,15 @@ export default function App() {
         const date = it.dt_txt?.split(" ")?.[0];
         if (!date) continue;
         if (!days.find((d) => d.date === date)) {
-          days.push({ date, temp: Math.round(it.main?.temp || 0), desc: it.weather?.[0]?.description || "" });
+          days.push({
+            date,
+            temp: Math.round(it.main?.temp || 0),
+            desc: it.weather?.[0]?.description || "",
+          });
         }
       }
       return days;
-    } catch (err) {
+    } catch {
       return [];
     }
   };
@@ -376,15 +375,12 @@ export default function App() {
 
       const w = await fetchWeatherFor(d.lat, d.lon);
       setWeather(w);
-      const f = await fetchForecastFor(d.lat, d.lon);
-      // const f = await fetchForecastFor(d.lat, d.lon);
-      // setForecast(f);
+      await fetchForecastFor(d.lat, d.lon);
+
       if (mapRef.current && d) {
         try {
           mapRef.current.setView([d.lat, d.lon], 8);
-        } catch (e) {
-          // ignore
-        }
+        } catch {}
       }
     } catch (err) {
       setError(err?.message || "Something went wrong");
@@ -400,15 +396,53 @@ export default function App() {
     if (!mapRef.current || !h) return;
     try {
       mapRef.current.setView([h.lat, h.lon], 15);
-    } catch (e) {
-      // ignore
-    }
+    } catch {}
   };
 
   const center = dest ? [dest.lat, dest.lon] : [20.5937, 78.9629];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <Helmet>
+        <html lang="en" />
+        <title>Travel Planner | Routes, Hotels & Weather</title>
+        <meta
+          name="description"
+          content="Plan trips with optimized routes, find nearby hotels, and check weather forecasts using our interactive Travel Planner."
+        />
+        <link rel="canonical" href="https://yourdomain.com/" />
+        <meta property="og:title" content="Travel Planner" />
+        <meta
+          property="og:description"
+          content="Plan trips with routes, hotels & weather in one place."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://yourdomain.com/" />
+        <meta property="og:image" content="https://yourdomain.com/preview.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Travel Planner" />
+        <meta
+          name="twitter:description"
+          content="Plan your journey with routes, hotels, and weather updates."
+        />
+        <meta
+          name="twitter:image"
+          content="https://yourdomain.com/preview.png"
+        />
+        <script type="application/ld+json">{`
+          {
+            "@context": "https://schema.org",
+            "@type": "TravelAgency",
+            "name": "Travel Planner",
+            "url": "https://yourdomain.com",
+            "description": "Plan trips with routes, hotels and weather info.",
+            "logo": "https://yourdomain.com/logo.png"
+          }
+        `}</script>
+        <link rel="preconnect" href="https://api.geoapify.com" />
+        <link rel="preconnect" href="https://tile.openstreetmap.org" />
+      </Helmet>
+
       <header className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
@@ -420,11 +454,9 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6 grid lg:grid-cols-3 gap-6">
-        {/* Sidebar (inputs, summary, weather, hotels) remains same */}
         <aside className="lg:col-span-1 space-y-4">
           <div className="bg-white/90 backdrop-blur p-4 rounded-2xl shadow-lg space-y-3 transition hover:shadow-xl">
             <div className="text-sm font-semibold text-gray-700">Plan your trip</div>
-
             <PlaceInput
               label="Origin"
               value={originText}
@@ -437,7 +469,6 @@ export default function App() {
                 setOriginText(p.display || "");
               }}
             />
-
             <div className="space-y-2">
               {waypoints.map((wp, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -468,7 +499,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-
             <PlaceInput
               label="Destination"
               value={destText}
@@ -481,9 +511,10 @@ export default function App() {
                 setDestText(p.display || "");
               }}
             />
-
             <div className="w-full">
-              <label className="block text-xs text-gray-400 mb-1 tracking-wide">Travel Mode</label>
+              <label className="block text-xs text-gray-400 mb-1 tracking-wide">
+                Travel Mode
+              </label>
               <select
                 value={routeType}
                 onChange={(e) => setRouteType(e.target.value)}
@@ -494,10 +525,13 @@ export default function App() {
                 <option value="flight">Flight</option>
               </select>
             </div>
-
             <div className="flex gap-2 mt-2">
-              <button onClick={addWaypoint} className="flex-1 bg-white border border-gray-200 text-sm px-4 py-2 rounded-xl hover:shadow transition">+ Add Stop</button>
-
+              <button
+                onClick={addWaypoint}
+                className="flex-1 bg-white border border-gray-200 text-sm px-4 py-2 rounded-xl hover:shadow transition"
+              >
+                + Add Stop
+              </button>
               <button
                 onClick={planTrip}
                 disabled={loading}
@@ -506,16 +540,19 @@ export default function App() {
                 {loading ? "Planning..." : "Plan Trip"}
               </button>
             </div>
-
             {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
           </div>
-
           <div className="bg-white/90 backdrop-blur p-4 rounded-2xl shadow-lg hover:shadow-xl transition">
             <div className="text-sm font-semibold text-gray-700">Summary</div>
             {summary ? (
               <div className="mt-2 text-sm space-y-1">
                 <div>
-                  {routeType === "flight" ? "✈️" : routeType === "bike" ? "🚲" : "🚗"} Distance: <strong>{summary.distance} km</strong>
+                  {routeType === "flight"
+                    ? "✈️"
+                    : routeType === "bike"
+                    ? "🚲"
+                    : "🚗"}{" "}
+                  Distance: <strong>{summary.distance} km</strong>
                 </div>
                 <div>
                   ⏱ Duration: <strong>{summary.duration} hrs</strong>
@@ -525,37 +562,56 @@ export default function App() {
               <div className="mt-2 text-sm text-gray-400">No route yet</div>
             )}
           </div>
-
           <div className="bg-white/90 backdrop-blur p-4 rounded-2xl shadow-lg hover:shadow-xl transition">
-            <div className="text-sm font-semibold text-gray-700">Weather (destination)</div>
+            <div className="text-sm font-semibold text-gray-700">
+              Weather (destination)
+            </div>
             {weather ? (
               <div className="mt-2 text-sm">
-                <div className="text-lg font-bold">{Math.round(weather.main?.temp || 0)}°C</div>
-                <div className="capitalize text-gray-500">{weather.weather?.[0]?.description || ""}</div>
+                <div className="text-lg font-bold">
+                  {Math.round(weather.main?.temp || 0)}°C
+                </div>
+                <div className="capitalize text-gray-500">
+                  {weather.weather?.[0]?.description || ""}
+                </div>
               </div>
             ) : (
-              <div className="mt-2 text-sm text-gray-400">{OWM_KEY ? "No data yet." : "Set VITE_OPENWEATHER_API_KEY to enable weather."}</div>
+              <div className="mt-2 text-sm text-gray-400">
+                {OWM_KEY
+                  ? "No data yet."
+                  : "Set VITE_OPENWEATHER_API_KEY to enable weather."}
+              </div>
             )}
           </div>
-
           <div className="bg-white/90 backdrop-blur p-4 rounded-2xl shadow-lg hover:shadow-xl transition">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-gray-700">Nearby Hotels</div>
+              <div className="text-sm font-semibold text-gray-700">
+                Nearby Hotels
+              </div>
               <div className="text-xs text-gray-400">{hotels.length} found</div>
             </div>
-
             <div className="mt-3 space-y-2 max-h-64 overflow-auto pr-1">
               {hotels.length === 0 ? (
-                <div className="text-xs text-gray-400">No hotels yet — plan trip to load.</div>
+                <div className="text-xs text-gray-400">
+                  No hotels yet — plan trip to load.
+                </div>
               ) : (
                 hotels.map((h) => (
-                  <div key={h.id} className="border p-2 rounded-lg flex items-start justify-between bg-white/80">
+                  <div
+                    key={h.id}
+                    className="border p-2 rounded-lg flex items-start justify-between bg-white/80"
+                  >
                     <div>
                       <div className="text-sm font-medium">{h.name}</div>
                       <div className="text-xs text-gray-500">{h.address}</div>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <button onClick={() => viewHotelOnMap(h)} className="text-xs px-2 py-1 bg-blue-600 text-white rounded-md">View</button>
+                      <button
+                        onClick={() => viewHotelOnMap(h)}
+                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded-md"
+                      >
+                        View
+                      </button>
                     </div>
                   </div>
                 ))
@@ -563,21 +619,53 @@ export default function App() {
             </div>
           </div>
         </aside>
-
         <section className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-xl shadow overflow-hidden">
-            <MapContainer center={center} zoom={5} style={{ height: "560px", width: "100%" }} whenCreated={(map) => (mapRef.current = map)}>
+            <MapContainer
+              center={center}
+              zoom={5}
+              style={{ height: "560px", width: "100%" }}
+              whenCreated={(map) => (mapRef.current = map)}
+            >
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-              {origin && <Marker position={[origin.lat, origin.lon]}><Popup>{origin.display}</Popup></Marker>}
-              {waypoints.map((w, i) => w.place && (<Marker key={`wp-${i}`} position={[w.place.lat, w.place.lon]}><Popup>{w.place.display || `Stop ${i + 1}`}</Popup></Marker>))}
-              {dest && <Marker position={[dest.lat, dest.lon]}><Popup>{dest.display}</Popup></Marker>}
-
-              {route && route.length > 0 && <Polyline positions={route} pathOptions={{ color: routeType === "flight" ? "#FF0000" : "#2563EB" }} />}
-              {route && route.length > 0 && <MovingPerson route={route} mode={routeType} />}
-
+              {origin && (
+                <Marker position={[origin.lat, origin.lon]}>
+                  <Popup>{origin.display}</Popup>
+                </Marker>
+              )}
+              {waypoints.map(
+                (w, i) =>
+                  w.place && (
+                    <Marker
+                      key={`wp-${i}`}
+                      position={[w.place.lat, w.place.lon]}
+                    >
+                      <Popup>{w.place.display || `Stop ${i + 1}`}</Popup>
+                    </Marker>
+                  )
+              )}
+              {dest && (
+                <Marker position={[dest.lat, dest.lon]}>
+                  <Popup>{dest.display}</Popup>
+                </Marker>
+              )}
+              {route && route.length > 0 && (
+                <Polyline
+                  positions={route}
+                  pathOptions={{
+                    color: routeType === "flight" ? "#FF0000" : "#2563EB",
+                  }}
+                />
+              )}
+              {route && route.length > 0 && (
+                <MovingPerson route={route} mode={routeType} />
+              )}
               {hotels.map((h) => (
-                <Marker key={`hotel-${h.id}`} position={[h.lat, h.lon]} icon={hotelIcon}>
+                <Marker
+                  key={`hotel-${h.id}`}
+                  position={[h.lat, h.lon]}
+                  icon={hotelIcon}
+                >
                   <Popup>
                     <div className="text-sm">
                       <div className="font-medium">🏨 {h.name}</div>
@@ -586,8 +674,13 @@ export default function App() {
                   </Popup>
                 </Marker>
               ))}
-
-              <FitBounds points={[...(route || []), ...(origin ? [[origin.lat, origin.lon]] : []), ...(dest ? [[dest.lat, dest.lon]] : [])]} />
+              <FitBounds
+                points={[
+                  ...(route || []),
+                  ...(origin ? [[origin.lat, origin.lon]] : []),
+                  ...(dest ? [[dest.lat, dest.lon]] : []),
+                ]}
+              />
             </MapContainer>
           </div>
         </section>
